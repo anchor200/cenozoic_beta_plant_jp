@@ -5,6 +5,7 @@ library(reshape2)
 library(betapart)
 library(vegan)
 library(geosphere)
+library(dplyr)
 
 # reading geographic information
 regions <- read.delim("data/region_mask.tsv", sep='\t', header=F, stringsAsFactor=FALSE)
@@ -62,24 +63,26 @@ culdata$Okinawa2 <- 0
 culdata$Okinawa2[culdata$island==5] <- 1
 
 culdata$key <- paste(culdata$lat, culdata$lon, sep="_")
-culdata <- culdata[, colnames(culdata)!="sea" & colnames(culdata)!="lat" & colnames(culdata)!="lon" & colnames(culdata)!="island"]
+culdata <- culdata[, colnames(culdata)!="sea" & colnames(culdata)!="island"]
+culdata_resh <- culdata
 culdata_resh$region_and_key <- paste(culdata_resh$key, culdata_resh$region, sep="_")
-
+culdata_resh <- culdata_resh[order(culdata_resh$key),]
 
 # devision of Hokkaido
 culdata_resh_Hokkaido <- subset(culdata_resh, culdata_resh$Hokkaido==1)
 culdata_resh_kai <- culdata_resh_Hokkaido[, colnames(culdata_resh_Hokkaido)!="key" & colnames(culdata_resh_Hokkaido)!="region" & colnames(culdata_resh_Hokkaido)!="region_and_key"]
 culdata_resh_mat <- data.frame(t(as.matrix(culdata_resh_kai)))
 colnames(culdata_resh_mat) <- culdata_resh_Hokkaido$key
-
 site_dist <- distanceMatrix(culdata_resh_mat, metric="euclidian")
 site.cluster <- hclust(site_dist)
 d <- as.dendrogram(site.cluster)
 site.dend <- as.dendrogram(d)
-colnames(culdata_resh_mat) <- culdata_resh_Hokkaido$region_and_key
+
+## Figure A3(a)
+plot(site.dend)
 
 clusters<-cutree(site.cluster,k=3)
-## clusters<-cutree(site.cluster,k=2) ## for supplementary analysis
+## clusters<-cutree(site.cluster,k=2) ## for supplementary analysis (Figure A4(a))
 
 cluster_resh <- data.frame(clusters)
 rownames(cluster_resh) <- culdata_resh_Hokkaido$region_and_key
@@ -102,7 +105,9 @@ site_dist <- distanceMatrix(culdata_resh_mat, metric="euclidian")
 site.cluster <- hclust(site_dist)
 d <- as.dendrogram(site.cluster)
 site.dend <- as.dendrogram(d)
-colnames(culdata_resh_mat) <- culdata_resh_Honshu$region_and_key
+
+## Figure A4(a)
+plot(site.dend)
 
 clusters<-cutree(site.cluster,k=14)
 ## clusters<-cutree(site.cluster,k=10) ## for supplementary analysis
@@ -121,7 +126,21 @@ cluster_resh_c <- cluster_resh
 # merge & write division table
 site_division <- rbind(cluster_resh_n, cluster_resh_c)
 write.table(site_division, "data/out/site_division.tsv", sep="\t", quote=F, row.names=F)
-## write.table(site_division, "data/out/site_division_suppl.tsv", sep="\t", quote=F, row.names=F) ## for supplementary analysis
+## write.table(site_division, "data/out/site_division_suppl.tsv", sep="\t", quote=F, row.names=F) ## for supplementary analysis (Figure A4(a))
+
+world.map <- map_data ("world")
+    japan <- world.map[world.map$long >= 120 & world.map$long < 150 & world.map$lat >= 20 & world.map$lat < 46 & world.map$region=="Japan",]
+
+
+## Figure A2
+g <- ggplot()+
+geom_tile(aes(x=lon+0.5, y=lat+0.5, fill=factor(clusters), color=factor(clusters)), data=site_division) + ylim(30, 46)+
+geom_path(data=japan, aes(x = long, y = lat, group = group), color="black")+ theme(text = element_text(size = 50))+
+xlab("longitude") + ylab("latitude")+theme_bw()+ theme(text = element_text(size = 24))+xlim(127, 146)+
+  guides(colour=guide_legend(override.aes = list(alpha=1,size=8)))+theme(legend.position = 'none') +
+  geom_text(aes(x=lon+0.5, y=lat+0.5, label=factor(clusters)), size=7, data=site_division)
+g
+
 
 geo.ages <- c("Oligocene", "Miocene", "Pliocene", "Pleistocene", "LastGlacial", "Holocene", "Present")
 
@@ -133,7 +152,7 @@ data_resh$long_floor <- floor(data_resh$Longitude)
 data_resh$lat_long <- paste(data_resh$lat_floor, data_resh$long_floor, sep="_")
 
 # Quartenary genus occurrence
-data_qua<-read.delim("data/Japan_Quaternary.csv", sep=',', header=T, stringsAsFactor=FALSE)
+data_qua<-read.delim("data/Japan_Quaternary_r.tsv", sep='\t', header=T, stringsAsFactor=FALSE)
 data_qua$Genus <- tolower(data_qua$genus)
 data_qua$Latitude <- data_qua$lat
 data_qua$Longitude <- data_qua$lon
@@ -142,13 +161,13 @@ data_qua$long_floor <- floor(data_qua$Longitude)
 data_qua$lat_long <- paste(data_qua$lat_floor, data_qua$long_floor, sep="_")
 
 # Current genus occurrence
-dataresent_2d<-readRDS("data/present_tree_mesh2.rds")
-dataresent_2d$Latitude <- dataresent_2d$lat
-dataresent_2d$Longitude <- dataresent_2d$lon
-dataresent_2d$lat_floor <- floor(dataresent_2d$Latitude)
-dataresent_2d$long_floor <- floor(dataresent_2d$Longitude)
-dataresent_2d$Genus <- tolower(dataresent_2d$genus)
-dataresent_2d$lat_long <- paste(dataresent_2d$lat_floor, dataresent_2d$long_floor, sep="_")
+data_present_2d<-readRDS("data/present_tree_mesh2.rds")
+data_present_2d$Latitude <- data_present_2d$lat
+data_present_2d$Longitude <- data_present_2d$lon
+data_present_2d$lat_floor <- floor(data_present_2d$Latitude)
+data_present_2d$long_floor <- floor(data_present_2d$Longitude)
+data_present_2d$Genus <- tolower(data_present_2d$genus)
+data_present_2d$lat_long <- paste(data_present_2d$lat_floor, data_present_2d$long_floor, sep="_")
 
 
 # Data description
@@ -160,10 +179,10 @@ print(c("Quartenary data points", nrow(data_qua)))
 print(c("Quartenary sites", nrow(table(data_qua$chimei))))
 print(c("Quartenary n genus", nrow(table(data_qua$Genus))))
 
-table(data_qua$花粉vs大型化石)
+table(data_qua$fossil_type)
 
 # Genus list
-genus_list <-union(union(union(rownames(table(dataresent_2d$Genus)), rownames(table(data_qua$Genus))), rownames(table(data_resh$Genus))), rownames(table(dataresent_2d$Genus)))
+genus_list <-union(union(union(rownames(table(data_present_2d$Genus)), rownames(table(data_qua$Genus))), rownames(table(data_resh$Genus))), rownames(table(data_present_2d$Genus)))
 nGen <- length(genus_list)
 genus_list_ter <-rownames(table(data_resh$Genus))
 nGen_ter <- length(genus_list_ter)
@@ -295,6 +314,7 @@ rownames(whole_samples_region) <- whole_samples_region$genus
 for_ana_region <- whole_samples_region[-1]
 
 ## sample completeness calculation
+## Table A1
 pool_1 <- t(for_ana_region)
 pool_1 <- pool_1[apply(pool_1, 1, sum)>1,]
 pool_ <- gsub("\\d", "", rownames(pool_1))
@@ -305,7 +325,7 @@ ppp <- pool_1[1:4,]
 
 
 ## filtering with n of genus par subregion
-CUT <- 10
+CUT <- 10 # for results of Table A3, change this number.
 for_ana_region[for_ana_region > 1] <- 1
 for_ana_region <- for_ana_region[apply(for_ana_region, 2, sum)>CUT]
 
@@ -314,8 +334,6 @@ for_ana_region <- for_ana_region[apply(for_ana_region, 2, sum)>CUT]
 plot_co_region_matrix <- function(cene){
 
     data_cene <- subset(data_resh, data_resh$Geological.period==cene) 
-    
-    
     temp_aggr <- matrix(0, nrow=nGen, ncol=n_regions)
     rownames(temp_aggr) <- genus_list
     colnames(temp_aggr) <- regions
@@ -364,7 +382,7 @@ LastGlacial_pa_by_region <- plot_co_region_matrix_qua("Last glacial period")
 Holocene_pa_by_region <- plot_co_region_matrix_qua("Holocene")
 
 #Current data processing
-    data_cene <-   dataresent_2d
+    data_cene <-   data_present_2d
     temp_aggr <- matrix(0, nrow=nGen, ncol=n_regions)
     rownames(temp_aggr) <- genus_list
     colnames(temp_aggr) <- regions
@@ -377,13 +395,9 @@ Holocene_pa_by_region <- plot_co_region_matrix_qua("Holocene")
             }
         }
     }
-
-
 Present_pa_by_region <- temp_aggr
 
-
 # function for beta div calc
-
 beta_order <- function(res, info=0){
     size <- ncol(as.matrix(res$beta.sim))
     n_pairs <- size * (size - 1) / 2
@@ -419,10 +433,10 @@ beta.regr <- function(cene, data_aggr, method, clim=FALSE){
     da$temp <- da$beta.sim
     
     if (method == "pow"){
-        da$sp_dist <- log(da$sp_dist)
-        res <- glm(temp+.Machine$double.eps ~ sp_dist , family = gaussian(log), data=da)
+        da$sp_dist <- log(da$sp_dist + .Machine$double.eps)
+        res <- glm(1 - beta.sim+.Machine$double.eps ~ sp_dist , family = gaussian(log), data=da)
     }else{
-        res <- glm(temp+.Machine$double.eps ~ sp_dist , family = gaussian(log), data=da)
+        res <- glm(1 - temp+.Machine$double.eps ~ sp_dist , family = gaussian(log), data=da)
     }
     res.temp <- as.data.frame(coef(summary(res)))
     res.temp$geo_peri <- cene
@@ -446,7 +460,7 @@ beta.regr <- function(cene, data_aggr, method, clim=FALSE){
 
     if (method == "pow"){
         da$clim_dist <- log(da$clim_dist + .Machine$double.eps)
-        res <- glm(1 - beta.sim+.Machine$double.eps ~ clim_dist , family = gaussian(log), data=da)        
+        res <- glm(1 - beta.sim+.Machine$double.eps ~ clim_dist , family = gaussian(log), data=da)
     }else{
             res <- glm(1 - beta.sim+.Machine$double.eps ~ clim_dist , family = gaussian(log), data=da)
     }
@@ -454,9 +468,7 @@ beta.regr <- function(cene, data_aggr, method, clim=FALSE){
     res.temp$geo_peri <- cene
     
     return(list("coef"=res.temp, "pseudo_r2"=1 - res$deviance / res$null.deviance, "AIC"=AIC(res), "beta.mean"=mean_(da$beta.sim), "beta.sd"=sd_(da$beta.sim), "result"=res))
-
     }
-
 }
 
 
@@ -469,7 +481,6 @@ beta.calc.by.ages <- function(method, xseq, ret, clim=FALSE){
     else{
         dd <- plot_data_region_dist
     }
-
     
     if (ret == "AIC"){
         temp.ret <- rbind(
@@ -492,7 +503,6 @@ beta.calc.by.ages <- function(method, xseq, ret, clim=FALSE){
         beta.regr("Present", dd, method, clim)$pseudo_r2
          )
     }else{
-        
         temp.ret <- rbind(
         beta.regr("Oligocene", dd, method, clim)$coef,
         beta.regr("Miocene", dd, method, clim)$coef,
@@ -542,19 +552,29 @@ plot_data_region_dist$sp_dist <- plot_data_region_dist$dist
 
 # spatial distance-decay
 ## negative exp
+## Table A4(a) # A2(a)
 neg_exp_coefs_distonly_region <- beta.calc.by.ages("neg", "space", "ret")
 neg_exp_coefs_distonly_region$predictor <- gsub("\\d", "", rownames(neg_exp_coefs_distonly_region))
 colnames(neg_exp_coefs_distonly_region) <- gsub("\\s", "",colnames(neg_exp_coefs_distonly_region))
 neg_exp_coefs_distonly_region
 
-## power law
-pow_coefs_distonly_region <- beta.calc.by.ages("pow", "space", "ret")
+## Figure 2(b)
+neg_exp_coef_dist <- subset(neg_exp_coefs_distonly_region, neg_exp_coefs_distonly_region$predictor!="(Intercept)")
+neg_exp_coef_dist$geological_age <- factor(neg_exp_coef_dist$geo_peri, levels=geo.ages)
+gr <- barplot(-neg_exp_coef_dist$Estimate*1000 ~ neg_exp_coef_dist$geological_age, ylim=c(-0.4, 0.4), main="spacial distance-tunover relationship", xlab="geological age", ylab="turnover rate (/1000km)")
+arrows(gr, -neg_exp_coef_dist$Estimate*1000+neg_exp_coef_dist$Std.Error*1.96*1000, gr, -neg_exp_coef_dist$Estimate*1000-neg_exp_coef_dist$Std.Error*1.96*1000, code = 3, angle = 90, lwd = 1, length = 0.1, data=neg_exp_coef_dist)
+abline(h=0)
 
+
+## power law
+## Table A4(b) # A2(b)
+pow_coefs_distonly_region <- beta.calc.by.ages("pow", "space", "ret")
 pow_coefs_distonly_region$predictor <- gsub("\\d", "", rownames(pow_coefs_distonly_region))
 colnames(pow_coefs_distonly_region) <- gsub("\\s", "",colnames(pow_coefs_distonly_region))
-
+pow_coefs_distonly_region
 
 # fit measures
+## Table A4(a,b) # A2(a,b)
 neg_exp_aic <- beta.calc.by.ages("neg", "space", "AIC", clim=FALSE)
 neg_exp_r2 <- beta.calc.by.ages("neg", "space", "pseudo_r2", clim=FALSE)
 neg_exp_fit <- data.frame("info"=geo.ages, "pseudo_r2"=neg_exp_r2, "AIC"=neg_exp_aic)
@@ -595,21 +615,32 @@ for (k in 1:nrow(plot_data_region_dist)){
     clim_resh$Holo[[as.numeric(plot_data_region_dist$regionB[k])+1,1]])
     plot_data_region_dist$clim_dist_Present[k] <- abs(clim_resh$Present[[as.numeric(plot_data_region_dist$regionA[k])+1,1]] -
     clim_resh$Present[[as.numeric(plot_data_region_dist$regionB[k])+1,1]])
-    
 }
 
 ## negative exp
+## Table A4(c) #A2(c)
 neg_exp_coefs_clim_region <- beta.calc.by.ages("neg", "space", "ret", clim=TRUE)
 neg_exp_coefs_clim_region$predictor <- gsub("\\d", "", rownames(neg_exp_coefs_clim_region))
 colnames(neg_exp_coefs_clim_region) <- gsub("\\s", "",colnames(neg_exp_coefs_clim_region))
 neg_exp_coefs_clim_region
 
+neg_exp_coef_dist_c <- subset(neg_exp_coefs_clim_region, neg_exp_coefs_clim_region$predictor!="(Intercept)")
+neg_exp_coef_dist_c$geological_age <- factor(neg_exp_coef_dist_c$geo_peri, levels=geo.ages)
+
+## Figure 3(b)
+gr <- barplot(-Estimate ~ geological_age, ylim=c(-0.06, 0.07), data=neg_exp_coef_dist_c, main="climatic distance-tunover relationship", xlab="geological age", ylab="turnover rate (/degree)", las=1)
+arrows(gr, -neg_exp_coef_dist_c$Estimate+neg_exp_coef_dist_c$Std.Error*1.96, gr, -neg_exp_coef_dist_c$Estimate-neg_exp_coef_dist_c$Std.Error*1.96, code = 3, angle = 90, lwd = 1, length = 0.1, data=neg_exp_coef_dist_c)
+abline(h=0)
+
+
 ## power law
+## Table A4(d) #A2(d)
 pow_coefs_clim_region <- beta.calc.by.ages("pow", "space", "ret", clim=TRUE)
 pow_coefs_clim_region$predictor <- gsub("\\d", "", rownames(pow_coefs_clim_region))
 colnames(pow_coefs_clim_region) <- gsub("\\s", "",colnames(pow_coefs_clim_region))
 
 # fit measures
+## Table A4(c, d) #A2(c, d)
 neg_exp_aic_clim <- beta.calc.by.ages("neg", "space", "AIC", clim=TRUE)
 neg_exp_r2_clim <- beta.calc.by.ages("neg", "space", "pseudo_r2", clim=TRUE)
 neg_exp_fit_clim <- data.frame("info"=c("Oligocene", "Miocene", "Pliocene", "Pleistocene", "LastGlacial", "Holocene", "Present"), "pseudo_r2"=neg_exp_r2_clim, "AIC"=neg_exp_aic_clim)
@@ -628,8 +659,8 @@ cene_decay_plot <- function(cene, col_, clim=FALSE){
         plotdata$dist <- plotdata$clim_dist
         
         plot(beta.sim ~ dist, plotdata, main=paste(cene, ""), xlab="delta temperature [degree]", ylab="turnover", col=col_, pch=20,
-        cex.lab  = 2,       #  軸の説明の字の大きさを設定する
-        cex.axis = 1.8,      #  軸の数字等（ラベル）の大きさを設定する
+        cex.lab  = 2, 
+        cex.axis = 1.8, 
         cex.main = 1.8,
         ylim=c(0.0, 0.65), las=1, xlim=c(0, 15))
         
@@ -645,23 +676,17 @@ cene_decay_plot <- function(cene, col_, clim=FALSE){
         
 
         plot(beta.sim ~ dist, plotdata, main=paste(cene, ""), xlab="spatial distance [km]", ylab="turnover", col=col_, pch=20,
-        cex.lab  = 2,       #  軸の説明の字の大きさを設定する
-        cex.axis = 1.8,      #  軸の数字等（ラベル）の大きさを設定する
+        cex.lab  = 2,
+        cex.axis = 1.8,
         cex.main = 1.8,
         ylim=c(0.0, 0.65), las=1, xlim=c(0, 2000))
         
     }
 
-
-
-    
-
-    
-
     if (clim == TRUE){
-            m <- beta.regr(cene, plot_data_region_dist, beta, "neg", clim=TRUE)$result   
+            m <- beta.regr(cene, plot_data_region_dist, "neg", clim=TRUE)$result   
     }else{
-            m <- beta.regr(cene, plot_data_region_dist, beta, "neg")$result
+            m <- beta.regr(cene, plot_data_region_dist, "neg")$result
     }
 
     preds <- predict(m, newdata = newx, se.fit = TRUE, type = "link")
@@ -683,7 +708,7 @@ cene_decay_plot <- function(cene, col_, clim=FALSE){
 
 
 options(repr.plot.width=16, repr.plot.height=12)
-
+## Figure 2(a)
 par(mfrow=c(3,3)) 
 for (i in 1:length(geo.ages)){
 cene_decay_plot(geo.ages[i], "grey", FALSE)
@@ -717,7 +742,7 @@ clim_dist_add("Present", plot_data_region_dist)
 
 
 options(repr.plot.width=16, repr.plot.height=12)
-
+## Figure 3(a)
 par(mfrow=c(3,3)) 
 for (i in 1:length(geo.ages)){
 cene_decay_plot(geo.ages[i], "grey", TRUE)
